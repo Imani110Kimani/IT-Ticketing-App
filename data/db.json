@@ -1,0 +1,126 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "IT Admin",
+      "email": "it@company.com",
+      "role": "it",
+      "passwordHash": "$2a$10$SY3YTaf.M49hBRtGGozDQeTGCA6t7fwtNIRvWiuO0LGjqq/olkoje"
+    },
+    {
+      "id": 2,
+      "name": "Employee Demo",
+      "email": "employee@company.com",
+      "role": "employee",
+      "passwordHash": "$2a$10$5DLeyl4UuzAOFJr9NVk46eg9o2L33m1CQhRE7xHHhnRdFXQrp4/R."
+    }
+  ],
+  "tickets": [
+    {
+      "id": "INC-4102",
+      "title": "VPN disconnects every 15 minutes",
+      "description": "Remote connection drops repeatedly when using corporate VPN on Windows laptop.",
+      "requester": "Jordan Kim",
+      "requesterId": 1,
+      "priority": "High",
+      "status": "In Progress",
+      "assignee": "Nina Patel",
+      "createdAt": "2026-05-22T09:10:00",
+      "comments": [
+        {
+          "author": "Jordan Kim",
+          "text": "Started happening after the last update.",
+          "createdAt": "2026-05-22T09:12:00"
+        },
+        {
+          "author": "Nina Patel",
+          "text": "Investigating client logs and adapter settings.",
+          "createdAt": "2026-05-22T11:45:00"
+        }
+      ]
+    },
+    {
+      "id": "INC-4105",
+      "title": "Printer on floor 4 is offline",
+      "description": "Finance team cannot print to printer FIN-4B despite network being available.",
+      "requester": "Maria Gomez",
+      "requesterId": 1,
+      "priority": "Medium",
+      "status": "Open",
+      "assignee": "Unassigned",
+      "createdAt": "2026-05-23T11:30:00",
+      "comments": [
+        {
+          "author": "Maria Gomez",
+          "text": "Happening for everyone in our team.",
+          "createdAt": "2026-05-23T11:32:00"
+        }
+      ]
+    },
+    {
+      "id": "INC-4109",
+      "title": "Email sync delay on mobile",
+      "description": "Outlook mobile notifications are delayed by over 20 minutes.",
+      "requester": "Theo Wang",
+      "requesterId": 1,
+      "priority": "Low",
+      "status": "Resolved",
+      "assignee": "Arun Das",
+      "createdAt": "2026-05-24T14:45:00",
+      "comments": [
+        {
+          "author": "Arun Das",
+          "text": "Mailbox policy refreshed. Please confirm now.",
+          "createdAt": "2026-05-24T15:00:00"
+        },
+        {
+          "author": "Theo Wang",
+          "text": "Working fine now, thanks.",
+          "createdAt": "2026-05-24T15:18:00"
+        }
+      ]
+    }
+  ],
+  "knowledgeBase": [
+    {
+      "id": 1,
+      "title": "How to Reset MFA for Company Accounts",
+      "body": "Use the identity portal, select Security Info, then re-register your authenticator app in 3 steps.",
+      "tag": "Identity"
+    },
+    {
+      "id": 2,
+      "title": "Fixing VPN Connection and DNS Errors",
+      "body": "Check split tunneling profile, renew IP configuration, and restart secure tunnel service.",
+      "tag": "Networking"
+    },
+    {
+      "id": 3,
+      "title": "Outlook Sync Troubleshooting Checklist",
+      "body": "Verify mailbox size, sync interval, and focus assist rules on desktop and mobile.",
+      "tag": "Email"
+    },
+    {
+      "id": 4,
+      "title": "Self-Service Printer Recovery Guide",
+      "body": "Clear stale print jobs, reconnect to the queue, and validate print spooler status.",
+      "tag": "Hardware"
+    },
+    {
+      "id": 5,
+      "title": "Laptop Running Slow: First 10-Minute Fixes",
+      "body": "Close high-memory apps, run quick malware scan, and free startup processes.",
+      "tag": "Performance"
+    },
+    {
+      "id": 6,
+      "title": "Requesting Software Access or Licenses",
+      "body": "Submit a software request ticket with business reason and manager approval details.",
+      "tag": "Access"
+    }
+  ],
+  "counters": {
+    "user": 3,
+    "ticket": 4110
+  }
+}
