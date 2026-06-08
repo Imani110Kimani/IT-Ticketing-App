@@ -158,6 +158,9 @@ async function ensureDatabaseReady() {
       body TEXT NOT NULL,
       tag TEXT NOT NULL
     );
+
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS schedule JSONB DEFAULT '[]';
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS capacity INTEGER DEFAULT 1;
   `);
 
   const client = await pool.connect();
@@ -167,14 +170,89 @@ async function ensureDatabaseReady() {
     const { rows: userRows } = await client.query("SELECT COUNT(*) FROM users");
     if (Number(userRows[0].count) === 0) {
       const defaultUsers = [
-        { name: "IT Admin", email: "it@company.com", role: "it", passwordHash: bcrypt.hashSync("Passw0rd!", 10) },
-        { name: "Employee Demo", email: "employee@company.com", role: "employee", passwordHash: bcrypt.hashSync("Passw0rd!", 10) }
+        {
+          name: "IT Admin",
+          email: "it@company.com",
+          role: "it_admin",
+          passwordHash: bcrypt.hashSync("Passw0rd!", 10),
+          capacity: 3,
+          schedule: [
+            { day: "Monday", start: "09:00", end: "17:00" },
+            { day: "Tuesday", start: "09:00", end: "17:00" },
+            { day: "Wednesday", start: "09:00", end: "17:00" },
+            { day: "Thursday", start: "09:00", end: "17:00" },
+            { day: "Friday", start: "09:00", end: "17:00" }
+          ]
+        },
+        {
+          name: "IT Specialist 1",
+          email: "it1@company.com",
+          role: "it_staff",
+          passwordHash: bcrypt.hashSync("Passw0rd!", 10),
+          capacity: 3,
+          schedule: [
+            { day: "Monday", start: "10:00", end: "18:00" },
+            { day: "Tuesday", start: "10:00", end: "18:00" },
+            { day: "Wednesday", start: "10:00", end: "18:00" },
+            { day: "Thursday", start: "10:00", end: "18:00" },
+            { day: "Friday", start: "10:00", end: "18:00" }
+          ]
+        },
+        {
+          name: "IT Specialist 2",
+          email: "it2@company.com",
+          role: "it_staff",
+          passwordHash: bcrypt.hashSync("Passw0rd!", 10),
+          capacity: 2,
+          schedule: [
+            { day: "Monday", start: "08:00", end: "16:00" },
+            { day: "Tuesday", start: "08:00", end: "16:00" },
+            { day: "Wednesday", start: "08:00", end: "16:00" },
+            { day: "Thursday", start: "08:00", end: "16:00" },
+            { day: "Friday", start: "08:00", end: "16:00" }
+          ]
+        },
+        {
+          name: "IT Specialist 3",
+          email: "it3@company.com",
+          role: "it_staff",
+          passwordHash: bcrypt.hashSync("Passw0rd!", 10),
+          capacity: 2,
+          schedule: [
+            { day: "Tuesday", start: "12:00", end: "20:00" },
+            { day: "Wednesday", start: "12:00", end: "20:00" },
+            { day: "Thursday", start: "12:00", end: "20:00" },
+            { day: "Friday", start: "12:00", end: "20:00" },
+            { day: "Saturday", start: "09:00", end: "15:00" }
+          ]
+        },
+        {
+          name: "IT Specialist 4",
+          email: "it4@company.com",
+          role: "it_staff",
+          passwordHash: bcrypt.hashSync("Passw0rd!", 10),
+          capacity: 2,
+          schedule: [
+            { day: "Monday", start: "09:00", end: "15:00" },
+            { day: "Wednesday", start: "09:00", end: "15:00" },
+            { day: "Thursday", start: "12:00", end: "18:00" },
+            { day: "Friday", start: "09:00", end: "15:00" }
+          ]
+        },
+        {
+          name: "Employee Demo",
+          email: "employee@company.com",
+          role: "employee",
+          passwordHash: bcrypt.hashSync("Passw0rd!", 10),
+          capacity: 1,
+          schedule: []
+        }
       ];
 
       for (const user of defaultUsers) {
         await client.query(
-          "INSERT INTO users (name, email, role, password_hash) VALUES ($1, $2, $3, $4)",
-          [user.name, user.email, user.role, user.passwordHash]
+          "INSERT INTO users (name, email, role, password_hash, schedule, capacity) VALUES ($1, $2, $3, $4, $5, $6)",
+          [user.name, user.email, user.role, user.passwordHash, JSON.stringify(user.schedule), user.capacity]
         );
       }
     }
@@ -232,6 +310,90 @@ function sanitizeUser(user) {
   };
 }
 
+function parseDailyTime(value) {
+  const [hours, minutes] = String(value).split(":").map(Number);
+  return Number.isFinite(hours) && Number.isFinite(minutes) ? hours * 60 + minutes : NaN;
+}
+
+function isAvailableWithinNext48Hours(schedule) {
+  if (!Array.isArray(schedule) || !schedule.length) {
+    return false;
+  }
+
+  const now = new Date();
+  const horizon = new Date(now.getTime() + 48 * 60 * 60 * 1000);
+  const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+  const current = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  while (current <= horizon) {
+    const dayName = dayNames[current.getDay()];
+    const todayBlocks = schedule.filter((block) => block.day === dayName);
+
+    for (const block of todayBlocks) {
+      const startMinutes = parseDailyTime(block.start);
+      const endMinutes = parseDailyTime(block.end);
+      if (Number.isNaN(startMinutes) || Number.isNaN(endMinutes)) continue;
+
+      const blockStart = new Date(current.getFullYear(), current.getMonth(), current.getDate(), Math.floor(startMinutes / 60), startMinutes % 60);
+      const blockEnd = new Date(current.getFullYear(), current.getMonth(), current.getDate(), Math.floor(endMinutes / 60), endMinutes % 60);
+
+      if (blockEnd > now && blockStart < horizon) {
+        return true;
+      }
+    }
+
+    current.setDate(current.getDate() + 1);
+  }
+
+  return false;
+}
+
+async function getOpenTicketCounts() {
+  const result = await pool.query(
+    `SELECT assignee, COUNT(*) AS count
+     FROM tickets
+     WHERE status != 'Resolved' AND assignee != 'Unassigned'
+     GROUP BY assignee`
+  );
+
+  return result.rows.reduce((acc, row) => {
+    acc[row.assignee] = Number(row.count);
+    return acc;
+  }, {});
+}
+
+async function selectBestAssignee() {
+  const staffResult = await pool.query("SELECT name, schedule, capacity FROM users WHERE role = 'it_staff' ORDER BY name");
+  const staff = staffResult.rows;
+  if (!staff.length) {
+    return "Unassigned";
+  }
+
+  const openCounts = await getOpenTicketCounts();
+  const candidates = staff.filter((user) => isAvailableWithinNext48Hours(user.schedule));
+  const assignmentPool = candidates.length ? candidates : staff;
+
+  assignmentPool.sort((a, b) => {
+    const aCount = openCounts[a.name] || 0;
+    const bCount = openCounts[b.name] || 0;
+    const aCapacity = a.capacity || 1;
+    const bCapacity = b.capacity || 1;
+    const aScore = aCount / aCapacity;
+    const bScore = bCount / bCapacity;
+
+    if (aScore !== bScore) {
+      return aScore - bScore;
+    }
+    if (aCount !== bCount) {
+      return aCount - bCount;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return assignmentPool[0].name;
+}
+
 function issueToken(user) {
   return jwt.sign(
     { sub: user.id, role: user.role, email: user.email, name: user.name },
@@ -257,8 +419,19 @@ function authRequired(req, res, next) {
   }
 }
 
+function isItRole(role) {
+  return ["it", "it_admin", "it_staff"].includes(role);
+}
+
 function roleRequired(role) {
   return (req, res, next) => {
+    if (role === "it") {
+      if (!isItRole(req.user.role)) {
+        return res.status(403).json({ error: "Insufficient permissions." });
+      }
+      return next();
+    }
+
     if (req.user.role !== role) {
       return res.status(403).json({ error: "Insufficient permissions." });
     }
@@ -295,6 +468,66 @@ async function getKnowledgeBase() {
   return result.rows;
 }
 
+async function isValidStaffAssignee(name) {
+  if (!name || !String(name).trim()) {
+    return false;
+  }
+
+  const result = await pool.query(
+    "SELECT 1 FROM users WHERE name = $1 AND role = 'it_staff'",
+    [String(name).trim()]
+  );
+
+  return result.rowCount > 0;
+}
+
+function validateSchedule(schedule) {
+  if (!Array.isArray(schedule)) {
+    return false;
+  }
+
+  const validDays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+  return schedule.every((block) => {
+    if (!block || typeof block !== "object") {
+      return false;
+    }
+    const day = String(block.day || "").trim();
+    const start = String(block.start || "").trim();
+    const end = String(block.end || "").trim();
+    return validDays.includes(day) && /^\d{2}:\d{2}$/.test(start) && /^\d{2}:\d{2}$/.test(end) && start < end;
+  });
+}
+
+app.patch(
+  "/api/staff/:id/schedule",
+  authRequired,
+  roleRequired("it"),
+  wrap(async (req, res) => {
+    const schedule = req.body?.schedule;
+
+    if (typeof schedule === "undefined") {
+      return res.status(400).json({ error: "Schedule is required." });
+    }
+
+    if (!validateSchedule(schedule)) {
+      return res.status(400).json({ error: "Invalid schedule format." });
+    }
+
+    const userResult = await pool.query("SELECT id, role FROM users WHERE id = $1", [req.params.id]);
+    if (!userResult.rows.length || !isItRole(userResult.rows[0].role)) {
+      return res.status(404).json({ error: "IT user not found." });
+    }
+
+    const targetUser = userResult.rows[0];
+    if (req.user.role !== "it_admin" && req.user.sub !== targetUser.id) {
+      return res.status(403).json({ error: "You can only update your own schedule." });
+    }
+
+    await pool.query("UPDATE users SET schedule = $1 WHERE id = $2", [JSON.stringify(schedule), req.params.id]);
+    return res.json({ success: true });
+  })
+);
+
 async function getTicketsForUser(user) {
   const baseQuery = `
     SELECT
@@ -322,7 +555,7 @@ async function getTicketsForUser(user) {
     LEFT JOIN comments c ON c.ticket_id = t.id
   `;
 
-  if (user.role === "it") {
+  if (isItRole(user.role)) {
     const result = await pool.query(
       `${baseQuery} GROUP BY t.id, t.ticket_number, t.title, t.description, t.requester, t.requester_id, t.priority, t.status, t.assignee, t.created_at ORDER BY t.created_at DESC`
     );
@@ -386,17 +619,21 @@ async function createTicket({ title, description, priority, requesterId, request
   );
   const nextNumber = nextNumberRow.rows[0].max_num ? Number(nextNumberRow.rows[0].max_num) + 1 : 4102;
   const ticketNumber = `INC-${nextNumber}`;
+  const assignee = await selectBestAssignee();
+  const status = "Open";
 
   const insertResult = await pool.query(
     `INSERT INTO tickets (ticket_number, title, description, requester_id, requester, priority, status, assignee, created_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 'Open', 'Unassigned', NOW()) RETURNING id, ticket_number AS id`,
-    [ticketNumber, title, description, requesterId, requester, priority]
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW()) RETURNING id`,
+    [ticketNumber, title, description, requesterId, requester, priority, status, assignee]
   );
 
-  const ticketId = insertResult.rows[0].ticket_id;
+  const ticketId = insertResult.rows[0].id;
+  const commentText = assignee === "Unassigned" ? "Ticket submitted." : `Ticket submitted and assigned to ${assignee}.`;
+
   await pool.query(
     `INSERT INTO comments (ticket_id, author, text, created_at) VALUES ($1, $2, $3, NOW())`,
-    [ticketId, requester, "Ticket submitted."]
+    [ticketId, requester, commentText]
   );
 
   return getTicketByNumber(ticketNumber);
@@ -452,7 +689,7 @@ app.post(
       return res.status(400).json({ error: "Password must be at least 6 characters." });
     }
 
-    const normalizedRole = role === "it" ? "it" : "employee";
+    const normalizedRole = role === "it" || role === "it_staff" ? "it_staff" : "employee";
     const normalizedEmail = String(email).trim().toLowerCase();
     const existingUser = await getUserByEmail(normalizedEmail);
 
@@ -514,6 +751,29 @@ app.get(
 );
 
 app.get(
+  "/api/staff",
+  authRequired,
+  roleRequired("it"),
+  wrap(async (req, res) => {
+    const result = await pool.query("SELECT id, name, role, schedule, capacity FROM users WHERE role IN ('it_admin', 'it_staff') ORDER BY name");
+    const openCounts = await getOpenTicketCounts();
+
+    const staff = result.rows.map((user) => ({
+      id: user.id,
+      name: user.name,
+      role: user.role,
+      schedule: user.schedule || [],
+      capacity: user.capacity || 1,
+      openTickets: openCounts[user.name] || 0,
+      loadRatio: Number(((openCounts[user.name] || 0) / (user.capacity || 1)).toFixed(2)),
+      availableNext48Hours: isAvailableWithinNext48Hours(user.schedule || [])
+    }));
+
+    res.json({ staff });
+  })
+);
+
+app.get(
   "/api/tickets",
   authRequired,
   wrap(async (req, res) => {
@@ -563,7 +823,7 @@ app.post(
       return res.status(404).json({ error: "Ticket not found." });
     }
 
-    if (req.user.role !== "it" && ticket.requesterId !== req.user.sub) {
+    if (!isItRole(req.user.role) && ticket.requesterId !== req.user.sub) {
       return res.status(403).json({ error: "You can only comment on your own tickets." });
     }
 
@@ -585,6 +845,13 @@ app.patch(
 
     if (status && !["Open", "In Progress", "Resolved"].includes(status)) {
       return res.status(400).json({ error: "Status must be Open, In Progress, or Resolved." });
+    }
+
+    if (typeof assignee !== "undefined" && assignee !== "") {
+      const validStaff = await isValidStaffAssignee(assignee);
+      if (!validStaff) {
+        return res.status(400).json({ error: "Assignee must be a valid IT staff member." });
+      }
     }
 
     const updated = await updateTicket(req.params.id, status, assignee);

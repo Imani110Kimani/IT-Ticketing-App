@@ -3,6 +3,7 @@ const state = {
   user: null,
   tickets: [],
   knowledgeBaseArticles: [],
+  itStaff: [],
   selectedTicketId: null,
   ticketSearch: "",
   kbSearch: ""
@@ -39,6 +40,8 @@ const ticketSearchEl = document.getElementById("ticketSearch");
 const dashboardTimestampEl = document.getElementById("dashboardTimestamp");
 const detailEmptyEl = document.getElementById("detailEmpty");
 const detailContentEl = document.getElementById("detailContent");
+const itStaffPanelEl = document.getElementById("itStaffPanel");
+const itStaffListEl = document.getElementById("itStaffList");
 const detailTitleEl = document.getElementById("detailTitle");
 const detailBadgeEl = document.getElementById("detailBadge");
 const detailMetaEl = document.getElementById("detailMeta");
@@ -49,7 +52,7 @@ const commentFormEl = document.getElementById("commentForm");
 const commentInputEl = document.getElementById("commentInput");
 const itControlsEl = document.getElementById("itControls");
 const statusSelectEl = document.getElementById("statusSelect");
-const assigneeInputEl = document.getElementById("assigneeInput");
+const assigneeSelectEl = document.getElementById("assigneeSelect");
 const newTicketBtnEl = document.getElementById("newTicketBtn");
 const ticketDialogEl = document.getElementById("ticketDialog");
 const ticketFormEl = document.getElementById("ticketForm");
@@ -62,6 +65,15 @@ const chatFormEl = document.getElementById("chatForm");
 const chatInputEl = document.getElementById("chatInput");
 const kbSearchEl = document.getElementById("kbSearch");
 const kbListEl = document.getElementById("kbList");
+const scheduleDialogEl = document.getElementById("scheduleDialog");
+const scheduleFormEl = document.getElementById("scheduleForm");
+const scheduleRowsEl = document.getElementById("scheduleRows");
+const addScheduleRowBtnEl = document.getElementById("addScheduleRowBtn");
+const cancelScheduleDialogEl = document.getElementById("cancelScheduleDialog");
+const scheduleDialogDescriptionEl = document.getElementById("scheduleDialogDescription");
+
+const SCHEDULE_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+let editingScheduleStaffId = null;
 
 function formatDate(iso) {
   return new Date(iso).toLocaleString([], {
@@ -70,6 +82,111 @@ function formatDate(iso) {
     hour: "2-digit",
     minute: "2-digit"
   });
+}
+
+function createScheduleEditorRow(block = { day: "Monday", start: "09:00", end: "17:00" }) {
+  const row = document.createElement("div");
+  row.className = "schedule-editor-row";
+
+  const daySelect = document.createElement("select");
+  daySelect.name = "day";
+  SCHEDULE_DAYS.forEach((day) => {
+    const option = document.createElement("option");
+    option.value = day;
+    option.textContent = day;
+    if (day === block.day) option.selected = true;
+    daySelect.appendChild(option);
+  });
+
+  const startInput = document.createElement("input");
+  startInput.name = "start";
+  startInput.type = "time";
+  startInput.value = block.start || "09:00";
+
+  const endInput = document.createElement("input");
+  endInput.name = "end";
+  endInput.type = "time";
+  endInput.value = block.end || "17:00";
+
+  const removeBtn = document.createElement("button");
+  removeBtn.type = "button";
+  removeBtn.className = "btn-ghost";
+  removeBtn.textContent = "Remove";
+  removeBtn.addEventListener("click", () => row.remove());
+
+  row.appendChild(daySelect);
+  row.appendChild(startInput);
+  row.appendChild(endInput);
+  row.appendChild(removeBtn);
+
+  return row;
+}
+
+function getScheduleFromEditor() {
+  const blocks = [];
+  scheduleRowsEl.querySelectorAll(".schedule-editor-row").forEach((row) => {
+    const day = row.querySelector("select[name='day']")?.value;
+    const start = row.querySelector("input[name='start']")?.value;
+    const end = row.querySelector("input[name='end']")?.value;
+
+    if (day && start && end) {
+      blocks.push({ day, start, end });
+    }
+  });
+  return blocks;
+}
+
+function formatScheduleCalendar(schedule) {
+  const dayBlocks = schedule.reduce((acc, block) => {
+    if (!acc[block.day]) acc[block.day] = [];
+    acc[block.day].push(`${block.start}–${block.end}`);
+    return acc;
+  }, {});
+
+  return `
+    <div class="schedule-calendar">
+      ${SCHEDULE_DAYS.map((day) => {
+        const blocks = dayBlocks[day] || [];
+        const content = blocks.length ? blocks.map((item) => `<span>${item}</span>`).join("") : `<span><em>Off</em></span>`;
+        return `<div class="calendar-day"><strong>${day.slice(0, 3)}</strong>${content}</div>`;
+      }).join("")}
+    </div>
+  `;
+}
+
+function openScheduleDialog(staff) {
+  editingScheduleStaffId = staff.id;
+  clearDialogError();
+  scheduleDialogDescriptionEl.textContent = `Update schedule for ${staff.name}.`;
+  scheduleRowsEl.innerHTML = "";
+
+  const schedule = Array.isArray(staff.schedule) ? staff.schedule : [];
+  if (!schedule.length) {
+    scheduleRowsEl.appendChild(createScheduleEditorRow());
+  } else {
+    schedule.forEach((block) => scheduleRowsEl.appendChild(createScheduleEditorRow(block)));
+  }
+
+  scheduleDialogEl.showModal();
+}
+
+function isEditableSchedule(staff) {
+  return state.user?.role === "it_admin" || (state.user?.role === "it_staff" && state.user?.name === staff.name);
+}
+
+function setDialogError(message) {
+  scheduleDialogDescriptionEl.textContent = message;
+  scheduleDialogDescriptionEl.style.color = "#b34f56";
+}
+
+function clearDialogError() {
+  scheduleDialogDescriptionEl.textContent = "Use the calendar editor to update availability by day and time.";
+  scheduleDialogDescriptionEl.style.color = "";
+}
+
+function setDialogMessage(message) {
+  scheduleDialogDescriptionEl.textContent = message;
+  scheduleDialogDescriptionEl.style.color = "#566981";
 }
 
 function setAuthMessage(message, isError = false) {
@@ -112,15 +229,28 @@ function clearAuth() {
   localStorage.removeItem("it_ticketing_token");
 }
 
+function isItRole(role) {
+  return ["it", "it_admin", "it_staff"].includes(role);
+}
+
 function applyAuthView() {
   const isAuthed = Boolean(state.user && state.token);
+  const showStaffPanel = isAuthed && isItRole(state.user?.role);
+
   authPanelEl.classList.toggle("hidden", isAuthed);
   appTopbarEl.classList.toggle("hidden", !isAuthed);
   appLayoutEl.classList.toggle("hidden", !isAuthed);
+  itStaffPanelEl.classList.toggle("hidden", !showStaffPanel);
 
   if (isAuthed) {
     userNameEl.textContent = state.user.name;
-    userRoleEl.textContent = state.user.role === "it" ? "IT Staff" : "Employee";
+    if (state.user.role === "it_admin") {
+      userRoleEl.textContent = "IT Admin";
+    } else if (state.user.role === "it_staff") {
+      userRoleEl.textContent = "IT Staff";
+    } else {
+      userRoleEl.textContent = "Employee";
+    }
   }
 }
 
@@ -226,8 +356,8 @@ function renderTicketDetail() {
   detailAssigneeEl.textContent = ticket.assignee === "Unassigned" ? "Unassigned" : `Assigned to ${ticket.assignee}`;
 
   statusSelectEl.value = ticket.status;
-  assigneeInputEl.value = ticket.assignee === "Unassigned" ? "" : ticket.assignee;
-  itControlsEl.classList.toggle("hidden", state.user.role !== "it");
+  renderAssigneeSelect(ticket.assignee);
+  itControlsEl.classList.toggle("hidden", !isItRole(state.user.role));
 
   renderComments(ticket);
 }
@@ -280,14 +410,82 @@ function renderKnowledgeBase() {
   });
 }
 
+function formatSchedule(schedule) {
+  if (!Array.isArray(schedule) || !schedule.length) {
+    return "No schedule defined";
+  }
+  return schedule.map((block) => `${block.day} ${block.start}-${block.end}`).join(" · ");
+}
+
+function renderStaffWorkload() {
+  itStaffListEl.innerHTML = "";
+
+  if (!state.itStaff.length) {
+    itStaffListEl.innerHTML = '<div class="empty-state">Staff availability and workload are visible to IT users only.</div>';
+    return;
+  }
+
+  state.itStaff.forEach((staff) => {
+    const roleLabel = staff.role === "it_admin" ? "IT Admin" : "IT Staff";
+    const canEdit = isEditableSchedule(staff);
+
+    const card = document.createElement("article");
+    card.className = "kb-card";
+    card.innerHTML = `
+      <div class="staff-card-head">
+        <div>
+          <h3>${staff.name}</h3>
+          <p class="subtle">${roleLabel}</p>
+        </div>
+        <div>
+          <span class="badge ${staff.loadRatio >= 1 ? "high" : staff.openTickets === 0 ? "resolved" : "medium"}">${staff.openTickets} open</span>
+          ${canEdit ? `<button type="button" class="btn-secondary edit-schedule-btn">Edit Schedule</button>` : ""}
+        </div>
+      </div>
+      <p class="subtle">Capacity: ${staff.capacity}</p>
+      <p class="subtle">Available soon: ${staff.availableNext48Hours ? "Yes" : "No"}</p>
+      <div class="schedule-block">
+        <strong>Schedule</strong>
+        ${formatScheduleCalendar(Array.isArray(staff.schedule) ? staff.schedule : [])}
+      </div>
+    `;
+
+    if (canEdit) {
+      card.querySelector(".edit-schedule-btn").addEventListener("click", () => openScheduleDialog(staff));
+    }
+
+    itStaffListEl.appendChild(card);
+  });
+}
+
+function renderAssigneeSelect(selectedAssignee) {
+  const staffOptions = state.itStaff.filter((staff) => staff.role === "it_staff");
+  assigneeSelectEl.innerHTML = '<option value="">Unassigned</option>';
+
+  staffOptions.forEach((staff) => {
+    const selected = staff.name === selectedAssignee ? "selected" : "";
+    const option = document.createElement("option");
+    option.value = staff.name;
+    option.textContent = `${staff.name} (${formatSchedule(staff.schedule)})`;
+    if (selected) option.selected = true;
+    assigneeSelectEl.appendChild(option);
+  });
+}
+
 async function loadAppData() {
   const [ticketData, kbData] = await Promise.all([
     apiRequest("/api/tickets"),
     apiRequest("/api/knowledge")
   ]);
+  let staffData = null;
+
+  if (isItRole(state.user?.role)) {
+    staffData = await apiRequest("/api/staff");
+  }
 
   state.tickets = ticketData.tickets;
   state.knowledgeBaseArticles = kbData.knowledgeBase;
+  state.itStaff = staffData?.staff || [];
   if (!state.selectedTicketId && state.tickets.length) {
     state.selectedTicketId = state.tickets[0].id;
   }
@@ -299,6 +497,7 @@ async function loadAppData() {
   renderTicketList();
   renderTicketDetail();
   renderKnowledgeBase();
+  renderStaffWorkload();
 }
 
 async function login(email, password) {
@@ -422,7 +621,7 @@ itControlsEl.addEventListener("submit", async (event) => {
       method: "PATCH",
       body: JSON.stringify({
         status: statusSelectEl.value,
-        assignee: assigneeInputEl.value
+        assignee: assigneeSelectEl.value
       })
     });
     await loadAppData();
@@ -437,6 +636,43 @@ newTicketBtnEl.addEventListener("click", () => {
 
 cancelDialogEl.addEventListener("click", () => {
   ticketDialogEl.close();
+});
+
+cancelScheduleDialogEl.addEventListener("click", () => {
+  scheduleDialogEl.close();
+  clearDialogError();
+});
+
+addScheduleRowBtnEl.addEventListener("click", () => {
+  scheduleRowsEl.appendChild(createScheduleEditorRow());
+});
+
+scheduleFormEl.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const blocks = getScheduleFromEditor();
+
+  if (!blocks.length) {
+    setDialogError("Add at least one schedule row before saving.");
+    return;
+  }
+
+  const invalidBlock = blocks.find((block) => !block.day || !block.start || !block.end || block.start >= block.end);
+  if (invalidBlock) {
+    setDialogError("Please use valid day and time ranges for all schedule rows.");
+    return;
+  }
+
+  try {
+    await apiRequest(`/api/staff/${editingScheduleStaffId}/schedule`, {
+      method: "PATCH",
+      body: JSON.stringify({ schedule: blocks })
+    });
+    scheduleDialogEl.close();
+    clearDialogError();
+    await loadAppData();
+  } catch (error) {
+    setDialogError(error.message || "Unable to save schedule.");
+  }
 });
 
 ticketFormEl.addEventListener("submit", async (event) => {

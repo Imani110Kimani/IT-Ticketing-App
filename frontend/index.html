@@ -51,7 +51,7 @@
         <label for="registerRole">Role</label>
         <select id="registerRole">
           <option value="employee">Employee</option>
-          <option value="it">IT Staff</option>
+          <option value="it_staff">IT Staff</option>
         </select>
 
         <button class="btn-primary" type="submit">Create Account</button>
@@ -173,14 +173,26 @@
                 </select>
               </div>
               <div class="control-row">
-                <label for="assigneeInput">Assign To</label>
-                <input id="assigneeInput" type="text" placeholder="Team member name" />
+                <label for="assigneeSelect">Assign To</label>
+                <select id="assigneeSelect">
+                  <option value="">Unassigned</option>
+                </select>
               </div>
               <button type="submit" class="btn-primary">Update Ticket</button>
             </form>
           </div>
         </aside>
       </div>
+    </section>
+
+    <section id="itStaffPanel" class="panel staff-workload hidden">
+      <div class="section-head">
+        <div>
+          <h2>IT Staff Workload & Schedule</h2>
+          <p class="subtle">View current IT assignments, capacity, schedule, and next-48-hour availability.</p>
+        </div>
+      </div>
+      <div id="itStaffList" class="staff-grid"></div>
     </section>
 
     <section class="panel chatbot">
@@ -231,6 +243,22 @@
       <div class="dialog-actions">
         <button value="cancel" class="btn-ghost" type="button" id="cancelDialog">Cancel</button>
         <button class="btn-primary" type="submit">Create</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="scheduleDialog">
+    <form method="dialog" id="scheduleForm" class="ticket-form">
+      <h3>Edit IT Schedule</h3>
+      <p id="scheduleDialogDescription" class="subtle">Use the calendar editor to update availability by day and time.</p>
+
+      <div id="scheduleRows" class="schedule-editor-grid"></div>
+
+      <button type="button" id="addScheduleRowBtn" class="btn-secondary">Add availability row</button>
+
+      <div class="dialog-actions">
+        <button value="cancel" class="btn-ghost" type="button" id="cancelScheduleDialog">Cancel</button>
+        <button class="btn-primary" type="submit">Save Schedule</button>
       </div>
     </form>
   </dialog>

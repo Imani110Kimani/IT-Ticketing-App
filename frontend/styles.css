@@ -369,6 +369,20 @@ textarea:focus {
   gap: 14px;
 }
 
+.staff-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.staff-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
 .ticket-list {
   display: grid;
   gap: 10px;
@@ -557,28 +571,99 @@ textarea:focus {
   border: 1px solid var(--line);
   border-radius: 13px;
   background: linear-gradient(150deg, #fcfdff, #f2f7fc);
-  padding: 12px;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 1fr 140px;
+  gap: 18px;
+  align-items: start;
 }
 
 .kb-card h3 {
   font-size: 0.96rem;
+  margin: 0;
+  grid-column: 1;
+  line-height: 1.4;
 }
 
 .kb-card p {
-  margin-top: 7px;
+  margin-top: 8px;
   font-size: 0.9rem;
   color: var(--text-2);
+  grid-column: 1;
+  line-height: 1.5;
 }
 
 .kb-tag {
-  display: inline-block;
-  margin-top: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   border-radius: 999px;
   background: #deebfa;
   color: #2f5d93;
-  padding: 4px 8px;
+  padding: 8px 12px;
   font-size: 0.75rem;
   font-weight: 700;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  align-self: center;
+  text-align: center;
+  min-height: 32px;
+}
+
+.schedule-block {
+  margin-top: 10px;
+}
+
+.schedule-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.calendar-day {
+  border: 1px solid rgba(141, 163, 190, 0.35);
+  border-radius: 14px;
+  padding: 10px;
+  min-height: 100px;
+  background: #f7fbff;
+}
+
+.calendar-day strong {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+  color: #3b5976;
+}
+
+.calendar-day span {
+  font-size: 0.82rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.schedule-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+  font-size: 0.9rem;
+}
+
+.schedule-table th,
+.schedule-table td {
+  border: 1px solid rgba(141, 163, 190, 0.3);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.schedule-table th {
+  background: rgba(228, 238, 251, 0.8);
+  color: #324a6e;
+  font-weight: 700;
+}
+
+.schedule-table tbody tr:nth-child(even) {
+  background: rgba(247, 250, 255, 1);
 }
 
 button {
@@ -621,6 +706,34 @@ button {
   display: grid;
   gap: 8px;
   min-width: min(580px, 92vw);
+}
+
+.schedule-editor-grid {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.schedule-editor-row {
+  display: grid;
+  grid-template-columns: 150px 1fr 1fr auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.schedule-editor-row select,
+.schedule-editor-row input {
+  min-width: 0;
+}
+
+@media (max-width: 680px) {
+  .schedule-editor-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.schedule-editor-row button {
+  padding: 8px 10px;
 }
 
 .ticket-row {
